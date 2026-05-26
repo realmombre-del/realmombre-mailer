@@ -358,8 +358,13 @@ function Integrations() {
 
 function ComposeModal({ onClose }) {
   const [subject, setSubject] = useState("");
+  const [previewText, setPreviewText] = useState("");
   const [body, setBody] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendStatus, setSendStatus] = useState(null); // null | { success, sent, error }
+  const [testEmail, setTestEmail] = useState("");
+  const [showTestInput, setShowTestInput] = useState(false);
 
   const aiAssist = async () => {
     if (!subject) return;
@@ -375,9 +380,43 @@ function ComposeModal({ onClose }) {
     setAiLoading(false);
   };
 
+  const sendTest = async () => {
+    if (!subject || !body || !testEmail) return;
+    setSending(true); setSendStatus(null);
+    try {
+      const res = await fetch("/api/send", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject, body, previewText, testMode: true, testEmail })
+      });
+      const data = await res.json();
+      setSendStatus(data.success ? { success: true, sent: 1, mode: "test" } : { success: false, error: data.error });
+    } catch (e) {
+      setSendStatus({ success: false, error: e.message });
+    }
+    setSending(false);
+  };
+
+  const sendToAll = async () => {
+    if (!subject || !body) return;
+    setSending(true); setSendStatus(null);
+    try {
+      const res = await fetch("/api/send", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject, body, previewText })
+      });
+      const data = await res.json();
+      setSendStatus(data.success ? { success: true, sent: data.sent } : { success: false, error: data.error, sent: data.sent });
+    } catch (e) {
+      setSendStatus({ success: false, error: e.message });
+    }
+    setSending(false);
+  };
+
+  const canSend = subject.trim() && body.trim() && !sending;
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "#000000CC", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
-      <div style={{ background: "#0F0F0F", border: "1px solid #1E1E1E", borderRadius: "16px", width: "640px", maxHeight: "80vh", overflow: "auto", padding: "32px" }}>
+      <div style={{ background: "#0F0F0F", border: "1px solid #1E1E1E", borderRadius: "16px", width: "640px", maxHeight: "88vh", overflow: "auto", padding: "32px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
           <div>
             <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: "18px", color: "#F5F0E8", marginBottom: "4px" }}>New Campaign</h3>
@@ -385,20 +424,58 @@ function ComposeModal({ onClose }) {
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "20px", cursor: "pointer" }}>✕</button>
         </div>
+
         <div style={{ marginBottom: "14px" }}>
           <label style={{ fontSize: "10px", color: "#666", fontFamily: "'Space Mono', monospace", letterSpacing: "0.08em", display: "block", marginBottom: "6px" }}>SUBJECT LINE</label>
           <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Something worth opening..." style={{ width: "100%", background: "#111", border: "1px solid #1E1E1E", borderRadius: "8px", color: "#D4CEBD", padding: "11px 14px", fontSize: "13px", fontFamily: "Georgia, serif", outline: "none", boxSizing: "border-box" }} />
         </div>
+
+        <div style={{ marginBottom: "14px" }}>
+          <label style={{ fontSize: "10px", color: "#666", fontFamily: "'Space Mono', monospace", letterSpacing: "0.08em", display: "block", marginBottom: "6px" }}>PREVIEW TEXT <span style={{ color: "#444" }}>— shown in inbox after subject</span></label>
+          <input value={previewText} onChange={e => setPreviewText(e.target.value)} placeholder="The first line your subscribers read before opening..." style={{ width: "100%", background: "#111", border: "1px solid #1E1E1E", borderRadius: "8px", color: "#D4CEBD", padding: "11px 14px", fontSize: "13px", fontFamily: "Georgia, serif", outline: "none", boxSizing: "border-box" }} />
+        </div>
+
         <div style={{ marginBottom: "18px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
             <label style={{ fontSize: "10px", color: "#666", fontFamily: "'Space Mono', monospace", letterSpacing: "0.08em" }}>BODY</label>
-            <button onClick={aiAssist} disabled={aiLoading || !subject} style={{ background: "none", border: "1px solid #00E5C840", color: "#00E5C8", padding: "4px 12px", borderRadius: "20px", fontSize: "10px", fontFamily: "'Space Mono', monospace", cursor: subject ? "pointer" : "default" }}>{aiLoading ? "WRITING..." : "⟡ AI ASSIST"}</button>
+            <button onClick={aiAssist} disabled={aiLoading || !subject} style={{ background: "none", border: "1px solid #00E5C840", color: "#00E5C8", padding: "4px 12px", borderRadius: "20px", fontSize: "10px", fontFamily: "'Space Mono', monospace", cursor: subject ? "pointer" : "default", opacity: subject ? 1 : 0.4 }}>{aiLoading ? "WRITING..." : "⟡ AI ASSIST"}</button>
           </div>
-          <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Write your email, or use AI Assist..." style={{ width: "100%", height: "200px", background: "#111", border: "1px solid #1E1E1E", borderRadius: "8px", color: "#D4CEBD", padding: "12px 14px", fontSize: "13px", fontFamily: "Georgia, serif", resize: "vertical", outline: "none", boxSizing: "border-box", lineHeight: "1.7" }} />
+          <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Write your email, or use AI Assist..." style={{ width: "100%", height: "220px", background: "#111", border: "1px solid #1E1E1E", borderRadius: "8px", color: "#D4CEBD", padding: "12px 14px", fontSize: "13px", fontFamily: "Georgia, serif", resize: "vertical", outline: "none", boxSizing: "border-box", lineHeight: "1.7" }} />
         </div>
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={{ background: "#1A1A1A", color: "#888", border: "1px solid #222", padding: "10px 20px", borderRadius: "8px", fontSize: "11px", fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>CANCEL</button>
-          <button style={{ background: "#00E5C8", color: "#0A0A0A", border: "none", padding: "10px 24px", borderRadius: "8px", fontSize: "11px", fontWeight: 700, fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>SAVE & SCHEDULE →</button>
+
+        {/* Send status */}
+        {sendStatus && (
+          <div style={{ marginBottom: "16px", padding: "12px 16px", borderRadius: "8px", background: sendStatus.success ? "#0A2920" : "#1A0A0A", border: `1px solid ${sendStatus.success ? "#00E5C840" : "#FF6B6B40"}` }}>
+            <div style={{ fontSize: "11px", fontFamily: "'Space Mono', monospace", color: sendStatus.success ? "#00E5C8" : "#FF6B6B" }}>
+              {sendStatus.success
+                ? sendStatus.mode === "test"
+                  ? `✓ Test sent to ${testEmail}`
+                  : `✓ Sent to ${sendStatus.sent} subscribers`
+                : `✕ Error: ${sendStatus.error}`}
+            </div>
+          </div>
+        )}
+
+        {/* Test send row */}
+        {showTestInput && (
+          <div style={{ marginBottom: "14px", display: "flex", gap: "8px" }}>
+            <input value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="your@email.com" style={{ flex: 1, background: "#111", border: "1px solid #1E1E1E", borderRadius: "8px", color: "#D4CEBD", padding: "9px 12px", fontSize: "12px", fontFamily: "'Space Mono', monospace", outline: "none" }} />
+            <button onClick={sendTest} disabled={!testEmail || !canSend} style={{ background: "#1A1A1A", color: "#888", border: "1px solid #333", padding: "9px 16px", borderRadius: "8px", fontSize: "11px", fontFamily: "'Space Mono', monospace", cursor: testEmail && canSend ? "pointer" : "default", whiteSpace: "nowrap" }}>
+              {sending ? "SENDING..." : "SEND TEST"}
+            </button>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: "10px", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button onClick={onClose} style={{ background: "#1A1A1A", color: "#666", border: "1px solid #222", padding: "10px 18px", borderRadius: "8px", fontSize: "11px", fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>CANCEL</button>
+            <button onClick={() => setShowTestInput(!showTestInput)} style={{ background: "#1A1A1A", color: "#666", border: "1px solid #222", padding: "10px 18px", borderRadius: "8px", fontSize: "11px", fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>
+              {showTestInput ? "HIDE TEST" : "SEND TEST →"}
+            </button>
+          </div>
+          <button onClick={sendToAll} disabled={!canSend} style={{ background: canSend ? "#00E5C8" : "#0A2920", color: canSend ? "#0A0A0A" : "#00E5C840", border: "none", padding: "10px 28px", borderRadius: "8px", fontSize: "11px", fontWeight: 700, fontFamily: "'Space Mono', monospace", cursor: canSend ? "pointer" : "default", transition: "all 0.15s" }}>
+            {sending ? "SENDING..." : "SEND TO 260 →"}
+          </button>
         </div>
       </div>
     </div>
